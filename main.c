@@ -9,11 +9,10 @@
 #include "historico.h" // Contém as definições e protótipos para o histórico de partidas
 #include "menu.h"      // Contém as definições e protótipos para o menu principal e funções auxiliares
 
-// Constantes globais que estavam em config.h, agora aqui ou nos .h relevantes
+// Constantes globais
 #define NUMERO_DE_PINOS 3          // Número fixo de pinos na Torre de Hanói (3 pinos: A, B, C).
 
 // Acessa a variável global nomeJogadorAtual, que é definida em menu.c.
-// Usamos 'extern' aqui para informar ao compilador que ela existe em outro arquivo.
 extern char nomeJogadorAtual[50]; 
 
 // Declaração de função auxiliar para limpar o buffer de entrada.
@@ -107,8 +106,9 @@ void exibirTorres(Pilha* pinos[], int totalDiscosJogo) {
     // Imprime a base dos pinos (os traços "---")
     for (int i = 0; i < NUMERO_DE_PINOS; i++) {
         int larguraBase = larguraMaximaPino;
+        // Centraliza a base "---"
         for (int j = 0; j < larguraBase / 2; j++) printf(" ");
-        printf("---"); // A base do pino visualmente
+        printf("---"); 
         for (int j = 0; j < larguraBase / 2; j++) printf(" ");
         printf("   ");
     }
@@ -117,6 +117,7 @@ void exibirTorres(Pilha* pinos[], int totalDiscosJogo) {
     // Imprime os nomes dos pinos (A, B, C)
     for (int i = 0; i < NUMERO_DE_PINOS; i++) {
         int larguraNome = larguraMaximaPino;
+        // Centraliza o nome do pino
         for (int j = 0; j < larguraNome / 2; j++) printf(" ");
         printf("%c", pinos[i]->nome); // Nome da haste (A, B ou C)
         for (int j = 0; j < larguraNome / 2; j++) printf(" ");

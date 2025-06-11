@@ -1,171 +1,135 @@
-#include <stdio.h>    // Para funções de entrada/saída como printf, fgets, getchar
-#include <stdlib.h>   // Para funções gerais como system (para limpar a tela) e atoi
-#include <locale.h>   // Para setlocale, permitindo caracteres especiais em português
-#include <string.h>   // Para funções de string como strcspn (para remover o '\n' do fgets)
+#include "menu.h"
+#include "historico.h" // Necessário para exibirHistorico e outras funções do histórico
+#include "pilha.h"     // Necessário para a função jogar
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h> // Necessário para strlen, strcspn
 
-// Inclusão dos cabeçalhos das outras partes do projeto
-#include "menu.h"      // Inclui as definições e protótipos específicos do menu
-#include "historico.h" // Inclui as funções de histórico para salvar, carregar e exibir partidas
-
-// Declaração da função 'jogar' que está definida em main.c.
-// Precisamos declará-la aqui para que 'exibirMenuPrincipal' possa chamá-la.
-void jogar(int numDiscos);
-
-// DEFINIÇÃO DA VARIÁVEL GLOBAL que armazena o nome do jogador da partida atual.
-// Esta variável é 'extern' em main.c para ser acessada lá.
+// Variável global para armazenar o nome do jogador atual
 char nomeJogadorAtual[50];
 
 /**
- * @brief Limpa a tela do console de forma compatível com diferentes sistemas operacionais.
- * * Usa 'cls' para Windows e sequências de escape ANSI para sistemas tipo Unix (Linux, macOS).
+ * @brief Limpa a tela do console, dependendo do sistema operacional.
  */
 void clearScreen() {
 #ifdef _WIN32
-    system("cls"); // Comando para limpar a tela no Windows
+    system("cls"); // Para Windows
 #else
-    // Sequência ANSI para limpar a tela e mover o cursor para a posição (1,1)
-    printf("\033[2J\033[H");
-    fflush(stdout); // Garante que a saída seja imediatamente exibida
+    system("clear"); // Para Linux/macOS
 #endif
 }
 
 /**
- * @brief Função auxiliar para limpar o buffer de entrada do teclado.
- * * Essencial após usar funções como 'scanf' ou 'atoi' que podem deixar o caractere de nova linha '\n'
- * no buffer, afetando leituras subsequentes com 'fgets' ou 'getchar'.
+ * @brief Limpa o buffer de entrada (stdin) para evitar leituras indesejadas.
+ * * Usado após scanf ou antes de fgets para garantir que o buffer esteja vazio.
  */
 void limparBufferEntrada() {
-    int caractereLido;
-    // Loop para ler e descartar caracteres do buffer até encontrar um '\n' ou o fim do arquivo (EOF).
-    while ((caractereLido = getchar()) != '\n' && caractereLido != EOF);
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
 }
 
 /**
  * @brief Exibe as instruções de como jogar Torre de Hanói.
- * * O jogador deve pressionar Enter para retornar ao menu principal.
  */
-void instrucoes() {
-    clearScreen(); // Limpa a tela para exibir as instruções
-    printf("        COMO JOGAR         \n");
-    printf("================================\n\n");
-    printf("Objetivo:\n");
-    printf(" Mover todos os discos da haste inicial para a haste de destino.\n\n");
-    printf("Como Jogar:\n");
-    printf("  1. É possível mexer somente um disco por vez.\n");
-    printf("  2. Só é possível colocar um disco sobre outro quando a base for maior.\n\n");
-    printf("Pressione 'Enter' para voltar ao menu!\n");
-    
-    // getchar() aqui serve para pausar e esperar que o usuário pressione Enter.
-    // Nenhuma limpeza de buffer extra é necessária antes, pois o menu principal já tratou.
-    getchar(); 
+void exibirInstrucoes() {
+    clearScreen();
+    printf("\n--- Como Jogar Torre de Hanoi ---\n");
+    printf("----------------------------------\n");
+    printf("O objetivo do jogo e mover todos os discos de um pino inicial\n");
+    printf("para um pino de destino, seguindo algumas regras:\n\n");
+    printf("1. Apenas um disco pode ser movido por vez.\n");
+    printf("2. Um disco maior nunca pode ser colocado em cima de um disco menor.\n");
+    printf("3. Cada movimento consiste em pegar o disco superior de um pino\n");
+    printf("   e coloca-lo no topo de outro pino.\n\n");
+    printf("Voce digita o movimento como duas letras, por exemplo: 'AB'\n");
+    printf("para mover o disco do pino A para o pino B.\n\n");
+    printf("Pinos: A (origem), B (auxiliar), C (destino).\n");
+    printf("----------------------------------\n");
+    printf("Pressione Enter para voltar ao menu...");
+    limparBufferEntrada(); // Garante que o buffer esteja limpo
+    getchar(); // Espera o usuário pressionar Enter
 }
 
 /**
  * @brief Exibe o menu principal do jogo e gerencia as opções do usuário.
- * * Carrega o histórico de partidas no início e o salva ao sair.
- * * Gerencia a navegação entre as opções: instruções, jogar, histórico e sair.
  */
 void exibirMenuPrincipal() {
-    // Configura a localidade para português para garantir que caracteres especiais
-    // (acentos, cedilha) sejam exibidos corretamente no console.
-    setlocale(LC_ALL, "Portuguese"); 
+    int opcao;
+    int numDiscos;
 
-    int opcaoMenuSelecionada;
-    char termoBuscaJogador[50]; // Buffer para o nome do jogador na busca
-    int numeroDiscosParaJogo = 0;
+    // Inicializa o sistema de histórico global ao iniciar o programa
+    inicializarHistoricoGlobal();
 
-    // Tenta carregar as partidas salvas de um arquivo ao iniciar o programa.
-    // Isso garante que o histórico seja persistente entre as execuções.
-    carregarPartidasDeArquivo(NOME_ARQUIVO_HISTORICO);
-
-    // Loop principal do menu, continua exibindo até que o usuário escolha sair (opção 0).
+    // Loop principal do menu
     do {
-        clearScreen(); // Limpa a tela para apresentar o menu
-        printf("        TORRE DE HANÓI          \n");
-        printf("======================================\n\n");
-        printf("Escolha uma opção:\n");
-        printf("  1. Como Jogar\n");
-        printf("  2. Iniciar Nova Partida\n"); // Renomeado para "Iniciar Nova Partida"
-        printf("  3. Ver Histórico de Partidas\n"); // Renomeado para "Ver Histórico de Partidas"
-        printf("  4. Buscar Partida no Histórico\n");
-        printf("  0. Sair do Jogo\n\n");
-        printf("Digite sua opção: ");
+        clearScreen();
+        printf("\n--- Bem-vindo a Torre de Hanoi! ---\n");
+        printf("-------------------------------------\n");
+        printf("1. Iniciar Novo Jogo\n");
+        printf("2. Como Jogar\n");
+        printf("3. Ver Historico de Partidas\n");
+        printf("0. Sair\n");
+        printf("-------------------------------------\n");
+        printf("Escolha uma opcao: ");
 
-        char bufferEntrada[10]; // Buffer temporário para ler a entrada da opção
-        // fgets lê a linha inteira, incluindo o '\n'. É mais seguro que scanf.
-        if (fgets(bufferEntrada, sizeof(bufferEntrada), stdin) == NULL) {
-            opcaoMenuSelecionada = -1; // Sinaliza erro ou entrada inválida
-        } else {
-            // Converte a string lida para um inteiro.
-            // atoi retorna 0 se a string não for um número válido.
-            opcaoMenuSelecionada = atoi(bufferEntrada); 
+        // Garante que o buffer de entrada está limpo antes de ler a opção
+        if (scanf("%d", &opcao) != 1) {
+            printf("\nEntrada invalida. Digite um numero. Pressione Enter para continuar...");
+            limparBufferEntrada(); // Limpa o buffer após a leitura falha
+            getchar(); // Espera a confirmação do usuário
+            continue; // Volta ao início do loop
         }
-        
-        // Estrutura de controle para as diferentes opções do menu
-        switch (opcaoMenuSelecionada) {
+        limparBufferEntrada(); // Limpa o buffer após a leitura bem-sucedida do número
+
+        switch (opcao) {
             case 1:
-                instrucoes(); // Chama a função que exibe as instruções
+                clearScreen();
+                printf("\n--- Iniciar Novo Jogo ---\n");
+                printf("Digite seu nome: ");
+                // fgets lê a linha inteira, incluindo o '\n'
+                if (fgets(nomeJogadorAtual, sizeof(nomeJogadorAtual), stdin) == NULL) {
+                    fprintf(stderr, "Erro ao ler o nome do jogador.\n");
+                    continue;
+                }
+                // Remove o '\n' lido por fgets, se presente
+                nomeJogadorAtual[strcspn(nomeJogadorAtual, "\n")] = '\0';
+
+                // Loop para garantir que o número de discos seja válido
+                do {
+                    printf("Escolha o numero de discos (%d a %d): ", MIN_DISCOS, MAX_DISCOS);
+                    if (scanf("%d", &numDiscos) != 1) {
+                        printf("Entrada invalida. Digite um numero.\n");
+                        limparBufferEntrada(); // Limpa o buffer após a leitura falha
+                    } else if (numDiscos < MIN_DISCOS || numDiscos > MAX_DISCOS) {
+                        printf("Numero de discos fora do intervalo permitido.\n");
+                    } else {
+                        break; // Sai do loop interno se a entrada for válida
+                    }
+                } while (1);
+                limparBufferEntrada(); // Limpa o buffer após a leitura bem-sucedida do número de discos
+
+                jogar(numDiscos); // Inicia o jogo
                 break;
             case 2:
-                clearScreen();
-                printf("Digite seu nome (ate 49 caracteres): ");
-                // fgets lê a linha inteira. O '\n' da entrada de 'opcaoMenuSelecionada'
-                // já foi consumido pelo fgets anterior, então não precisamos limpar o buffer aqui.
-                fgets(nomeJogadorAtual, sizeof(nomeJogadorAtual), stdin);
-                // Remove o caractere de nova linha '\n' que fgets pode ter incluído.
-                nomeJogadorAtual[strcspn(nomeJogadorAtual, "\n")] = '\0'; 
-
-                printf("Quantos discos voce deseja jogar (min 3, max %d)? ", MAX_DISCOS_POSSIVEIS);
-                // Novamente, fgets lê a linha completa, não precisa de limpeza prévia.
-                if (fgets(bufferEntrada, sizeof(bufferEntrada), stdin) == NULL) {
-                    numeroDiscosParaJogo = 0; // Sinaliza erro na leitura
-                } else {
-                    numeroDiscosParaJogo = atoi(bufferEntrada); // Converte para inteiro
-                }
-                
-                // Validação do número de discos
-                if (numeroDiscosParaJogo >= 3 && numeroDiscosParaJogo <= MAX_DISCOS_POSSIVEIS) {
-                    jogar(numeroDiscosParaJogo); // Inicia a partida com o número de discos escolhido
-                } else {
-                    printf("\nNumero de discos invalido! Por favor, digite um valor entre 3 e %d.\n", MAX_DISCOS_POSSIVEIS);
-                    printf("Pressione Enter para voltar ao menu principal...");
-                    // Limpa o buffer caso o usuário digite algo que não seja apenas números e Enter.
-                    limparBufferEntrada(); 
-                    getchar(); // Espera o usuário pressionar Enter para continuar
-                }
+                exibirInstrucoes();
                 break;
             case 3:
                 clearScreen();
-                exibirPartidasSalvas(); // Exibe o histórico de partidas
-                printf("Pressione Enter para voltar ao menu principal...");
-                limparBufferEntrada(); // Garante que o buffer esteja limpo antes de getchar
-                getchar(); 
-                break;
-            case 4:
-                clearScreen();
-                printf("Digite o nome ou parte do nome do jogador para buscar: ");
-                limparBufferEntrada(); // Limpa o '\n' que pode ter ficado da opção do menu
-                fgets(termoBuscaJogador, sizeof(termoBuscaJogador), stdin);
-                // Remove o '\n' que fgets adiciona no final da string.
-                termoBuscaJogador[strcspn(termoBuscaJogador, "\n")] = '\0'; 
-                buscarPartidasPorNome(termoBuscaJogador); // Realiza a busca no histórico
-                printf("Pressione Enter para voltar ao menu principal...");
-                limparBufferEntrada(); 
-                getchar();
+                exibirHistorico();
+                printf("\nPressione Enter para voltar ao menu...");
+                getchar(); // Espera o usuário pressionar Enter
                 break;
             case 0:
                 clearScreen();
-                printf("Obrigado por jogar! Salvando o historico e saindo...\n\n");
-                salvarPartidasEmArquivo(NOME_ARQUIVO_HISTORICO); // Salva todas as partidas em arquivo
-                liberarListaPartidasSalvas(); // Libera a memória alocada para o histórico
+                printf("\nObrigado por jogar! Ate mais!\n\n");
                 break;
             default:
-                printf("\nOpcao invalida! Por favor, escolha uma opcao listada.\n");
-                printf("Pressione Enter para tentar novamente...");
-                limparBufferEntrada(); 
-                getchar(); 
+                printf("\nOpcao invalida! Pressione Enter para tentar novamente...");
+                getchar(); // Espera o usuário pressionar Enter
                 break;
         }
+    } while (opcao != 0);
 
-    } while (opcaoMenuSelecionada != 0); // Continua o loop enquanto a opção não for 'Sair'
+    // Libera a memória alocada para o histórico global antes de sair do programa
+    liberarHistoricoGlobal();
 }
