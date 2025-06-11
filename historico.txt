@@ -1,0 +1,3 @@
+Jogador: teste1 | Discos: 3 | Movimentos: 9
+Jogador: teste2 | Discos: 3 | Movimentos: 7
+Jogador: sdmamdsl | Discos: 3 | Movimentos: 8
